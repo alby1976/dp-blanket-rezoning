@@ -6,10 +6,37 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-BASE_URL = "https://data.calgary.ca/api/v3/views/6933-unw5/query.json"
-PAGE_SIZE = 1000
-DATA_START_DATE = "2021-01-01"
-POLICY_DATE = "2024-08-06"
+DEFAULT_BASE_URL = "https://data.calgary.ca/api/v3/views/6933-unw5/query.json"
+DEFAULT_PAGE_SIZE = 1000
+DEFAULT_DATA_START_DATE = "2021-01-01"
+DEFAULT_POLICY_DATE = "2024-08-06"
+ENV_FILE = ".env"
+
+
+def load_env_file(path: str = ENV_FILE) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not os.path.exists(path):
+        return values
+
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'").strip('"')
+            if key:
+                values[key] = value
+    return values
+
+
+ENV = load_env_file()
+
+BASE_URL = ENV.get("BASE_URL", DEFAULT_BASE_URL)
+PAGE_SIZE = int(ENV.get("PAGE_SIZE", str(DEFAULT_PAGE_SIZE)))
+DATA_START_DATE = ENV.get("DATA_START_DATE", DEFAULT_DATA_START_DATE)
+POLICY_DATE = ENV.get("POLICY_DATE", DEFAULT_POLICY_DATE)
 
 SELECT_COLS = [
     "permitnum",
@@ -313,9 +340,27 @@ def build_metrics_framework() -> list[dict]:
         },
     ]
 
+def load_env_file(path: str = ENV_FILE) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not os.path.exists(path):
+        return values
+
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'").strip('"')
+            if key:
+                values[key] = value
+    return values
+
 
 def main():
-    app_token = os.getenv("SOCRATA_APP_TOKEN")
+    env_values = load_env_file()
+    app_token = env_values.get(SOCrATA_APP_TOKEN_KEY)
     os.makedirs("outputs", exist_ok=True)
     rows = fetch_all(app_token=app_token)
 
@@ -522,3 +567,21 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+Outputs are written to `outputs/`:
+
+- `permits_2021-01-01_to_present.csv`
+- `period_summary.csv`
+- `monthly_summary.csv`
+- `community_summary.csv`
+- `ward_summary.csv`
+- `top_missing_middle_types.csv`
+- `policy_metrics_summary.csv`
+- `policy_metrics_framework.csv`
+- `analysis_summary.md`
+
+## Notes
+
+- This workflow is intentionally **descriptive** (counts, shares, averages by period/community/ward).
+- It is not intended to estimate causal effects.
+- The script reads configuration from a local `.env` file.
